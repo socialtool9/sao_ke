@@ -1,16 +1,19 @@
+from datetime import datetime
+
 import mysql.connector
 import pdfplumber
 import csv
 from openpyxl import Workbook
+from loguru import logger
 
 # Path to the PDF file
-pdf_path = 'pdf/13-09.pdf'
+pdf_path = 'pdf/14-09.pdf'
 
 # MySQL Database configuration
 db_config = {
     'host': 'localhost',  # Update with your MySQL host
     'user': 'root',  # Update with your MySQL username
-    'password': 'xxxxx',  # Update with your MySQL password
+    'password': 'xxxx',  # Update with your MySQL password
     'database': 'new_sao_ke_data'  # Update with your MySQL database name
 }
 
@@ -31,11 +34,11 @@ def check_table_exists(cursor, table_name):
 def create_table_if_not_exists():
     conn = connect_to_mysql()
     cursor = conn.cursor()
-    table_name = 'saoke_13_09'
+    table_name = 'saoke_14_09'
 
     if not check_table_exists(cursor, table_name):
         create_table_query = '''
-        CREATE TABLE IF NOT EXISTS `saoke_13_09` (
+        CREATE TABLE IF NOT EXISTS `saoke_14_09` (
             `id` int NOT NULL AUTO_INCREMENT,
             `doc_no` varchar(255) NULL DEFAULT NULL,
             `amount` varchar(255) NULL DEFAULT NULL,
@@ -48,9 +51,9 @@ def create_table_if_not_exists():
         '''
         cursor.execute(create_table_query)
         conn.commit()
-        print(f"Table '{table_name}' created.")
+        logger.info(f"Table '{table_name}' created.")
     else:
-        print(f"Table '{table_name}' already exists.")
+        logger.info(f"Table '{table_name}' already exists.")
 
     cursor.close()
     conn.close()
@@ -63,7 +66,7 @@ def insert_transactions_to_mysql(transactions):
 
     # Insert each transaction into MySQL
     insert_query = '''
-    INSERT INTO saoke_13_09 (date, amount, details)
+    INSERT INTO saoke_14_09 (date, amount, details)
     VALUES (%s, %s, %s)
     '''
     for transaction in transactions:
@@ -77,7 +80,7 @@ def insert_transactions_to_mysql(transactions):
     # Close the cursor and connection
     cursor.close()
     conn.close()
-    print("Data exported to MySQL.")
+    logger.info("Data exported to MySQL.")
 
 
 # Function to export data to CSV
@@ -116,7 +119,7 @@ def extract_transactions_from_pdf(pdf_path, max_pages=-1):
             if i >= max_pages:
                 break  # Stop extraction after reaching the maximum pages
             lists = page.extract_table()
-            if i == 1:
+            if i == 0:
                 data = lists[1:]
             else:
                 data = lists
@@ -124,24 +127,28 @@ def extract_transactions_from_pdf(pdf_path, max_pages=-1):
                 if len(row) == 4:
                     try:
                         amount = int(row[2].replace('.', '').replace(',', ''))
+                        date_time = datetime.strptime(row[1], '%d/%m/%Y')
+                        date_time = date_time.strftime('%Y-%m-%d')
                         transaction_data = {
-                            "date": row[1],
+                            "date": str(date_time),
                             "amount": amount,
                             "details": row[3].replace('"', ''),
                         }
                         if amount is not None and amount != 0:
+                            logger.info(f"Extracted data from page {i + 1}: {row[0]}")
                             transactions.append(transaction_data)
                     except ValueError:
-                        print(f"Skipping row: {row}")
-        print(f"Extracted data from {min(len(pdf.pages), max_pages)} pages.")
+                        logger.info(f"Skipping row: {row}")
+        logger.info(f"Extracted data from {min(len(pdf.pages), max_pages)}/{len(pdf.pages)} pages.")
+        pdf.close()
     return transactions
 
 
 # User menu to choose the export format
-print("\nSelect export format:")
-print("1. MySQL")
-print("2. CSV")
-print("3. Excel")
+logger.info("\nSelect export format:")
+logger.info("1. MySQL")
+logger.info("2. CSV")
+logger.info("3. Excel")
 
 choice = input("Enter your choice (1/2/3): ")
 
@@ -149,7 +156,7 @@ choice = input("Enter your choice (1/2/3): ")
 try:
     max_pages = int(input("Enter the maximum number of pages to extract (leave blank for all): ") or -1)
 except ValueError:
-    print("Invalid input. Extracting all pages.")
+    logger.info("Invalid input. Extracting all pages.")
     max_pages = -1
 
 # Extract transactions only after choosing an export option
@@ -162,12 +169,12 @@ if choice == "1":
 elif choice == "2":
     csv_file_path = 'data/exported_transactions.csv'
     export_to_csv(transactions, csv_file_path)
-    print(f"Data exported to CSV at {csv_file_path}.")
+    logger.info(f"Data exported to CSV at {csv_file_path}.")
 
 elif choice == "3":
     excel_file_path = 'data/exported_transactions.xlsx'
     export_to_excel(transactions, excel_file_path)
-    print(f"Data exported to Excel at {excel_file_path}.")
+    logger.info(f"Data exported to Excel at {excel_file_path}.")
 
 else:
-    print("Invalid choice. Exiting.")
+    logger.info("Invalid choice. Exiting.")
