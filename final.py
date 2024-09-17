@@ -107,10 +107,14 @@ def export_to_excel(transactions, excel_file_path):
 
 
 # Function to read PDF and extract transactions
-def extract_transactions_from_pdf(pdf_path):
+def extract_transactions_from_pdf(pdf_path, max_pages=-1):
     transactions = []
     with pdfplumber.open(pdf_path) as pdf:
         for i, page in enumerate(pdf.pages):
+            if max_pages == -1:
+                max_pages = len(pdf.pages)
+            if i >= max_pages:
+                break  # Stop extraction after reaching the maximum pages
             lists = page.extract_table()
             if i == 1:
                 data = lists[1:]
@@ -129,7 +133,7 @@ def extract_transactions_from_pdf(pdf_path):
                             transactions.append(transaction_data)
                     except ValueError:
                         print(f"Skipping row: {row}")
-        print(f"Extracted data from {i + 1} pages.")
+        print(f"Extracted data from {min(len(pdf.pages), max_pages)} pages.")
     return transactions
 
 
@@ -141,8 +145,15 @@ print("3. Excel")
 
 choice = input("Enter your choice (1/2/3): ")
 
+# User input for max pages to extract
+try:
+    max_pages = int(input("Enter the maximum number of pages to extract (leave blank for all): ") or -1)
+except ValueError:
+    print("Invalid input. Extracting all pages.")
+    max_pages = -1
+
 # Extract transactions only after choosing an export option
-transactions = extract_transactions_from_pdf(pdf_path)
+transactions = extract_transactions_from_pdf(pdf_path, max_pages=max_pages)
 
 if choice == "1":
     create_table_if_not_exists()  # Check and create table if it doesn't exist
